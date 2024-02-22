@@ -1,106 +1,127 @@
 const fs = require('fs');
 
 class ProductManager {
-  constructor(filePath) {
-    this.path = filePath;
-    this.products = [];
-    this.loadProducts();
+  constructor(rutaArchivoProductos, rutaArchivoCarritos) {
+    this.pathProductos = rutaArchivoProductos;
+    this.pathCarritos = rutaArchivoCarritos;
   }
 
-  loadProducts() {
+  // Métodos para productos
+  agregarProducto(producto) {
+    const productos = this.obtenerProductos();
+    producto.id = this.generarIdUnico(productos);
+    productos.push(producto);
+    this.guardarProductos(productos);
+  }
+
+  obtenerProductos() {
     try {
-      const data = fs.readFileSync(this.path, 'utf8');
-      this.products = JSON.parse(data);
+      const datos = fs.readFileSync(this.pathProductos, 'utf-8');
+      return JSON.parse(datos);
     } catch (error) {
-      console.error("Error al cargar los productos:", error);
+      return [];
     }
   }
 
-  saveProducts() {
-    try {
-      fs.writeFileSync(this.path, JSON.stringify(this.products, null, 2));
-    } catch (error) {
-      console.error("Error al guardar los productos:", error);
+  obtenerProductoPorId(id) {
+    const productos = this.obtenerProductos();
+    const producto = productos.find((p) => p.id === id);
+    return producto || null;
+  }
+
+  actualizarProducto(id, productoActualizado) {
+    const productos = this.obtenerProductos();
+    const indice = productos.findIndex((p) => p.id === id);
+  
+    if (indice !== -1) {
+      productos[indice] = { ...productos[indice], ...productoActualizado };
+      this.guardarProductos(productos); // Guardar los productos actualizados
     }
   }
 
-  addProduct(product) {
-    const newProduct = {
-      id: this.products.length > 0 ? this.products[this.products.length - 1].id + 1 : 1,
-      ...product
+  eliminarProducto(id) {
+    let productos = this.obtenerProductos();
+    productos = productos.filter((p) => p.id !== id);
+    this.guardarProductos(productos);
+  }
+
+  generarIdUnico(productos) {
+    return productos.length > 0 ? Math.max(...productos.map((p) => p.id)) + 1 : 1;
+  }
+
+  guardarProductos(productos) {
+    try {
+      fs.writeFileSync(this.pathProductos, JSON.stringify(productos, null, 2), 'utf-8');
+    } catch (error) {
+      console.error('Error al guardar los productos:', error);
+    }
+  }
+  
+  
+
+  // Métodos para carritos
+  crearCarrito() {
+    const carrito = {
+      id: this.generarIdUnicoCarrito(),
+      products: []
     };
-    this.products.push(newProduct);
-    this.saveProducts();
-    console.log("Producto agregado:", newProduct);
+    this.guardarCarrito(carrito);
+    return carrito;
   }
 
-  getProducts() {
-    return this.products;
+  agregarProductoAlCarrito(carritoId, productId) {
+    const carrito = this.obtenerCarritoPorId(carritoId);
+    if (!carrito) return false;
+
+    carrito.products.push(productId);
+    this.guardarCarrito(carrito);
+    return true;
   }
 
-  getProductById(id) {
-    const product = this.products.find(existingProduct => existingProduct.id === id);
-    if (product) {
-      return product;
-    } else {
-      console.error("Producto no encontrado. ID:", id);
+  obtenerProductosDelCarrito(carritoId) {
+    const carrito = this.obtenerCarritoPorId(carritoId);
+    if (!carrito) return [];
+
+    const productos = [];
+    for (const productId of carrito.products) {
+      const producto = this.obtenerProductoPorId(productId);
+      if (producto) {
+        productos.push(producto);
+      }
+    }
+    return productos;
+  }
+
+  obtenerCarritoPorId(carritoId) {
+    try {
+      const datos = fs.readFileSync(this.pathCarritos, 'utf-8');
+      const carritos = JSON.parse(datos);
+      return carritos.find((c) => c.id === carritoId);
+    } catch (error) {
       return null;
     }
   }
 
-  updateProduct(id, updatedFields) {
-    const index = this.products.findIndex(product => product.id === id);
-    if (index !== -1) {
-      this.products[index] = { ...this.products[index], ...updatedFields };
-      this.saveProducts();
-      console.log("Producto actualizado:", this.products[index]);
-    } else {
-      console.error("Producto no encontrado para actualizar. ID:", id);
+  guardarCarrito(carrito) {
+    try {
+      const datos = fs.readFileSync(this.pathCarritos, 'utf-8');
+      const carritos = JSON.parse(datos);
+      carritos.push(carrito);
+      fs.writeFileSync(this.pathCarritos, JSON.stringify(carritos, null, 2), 'utf-8');
+    } catch (error) {
+      fs.writeFileSync(this.pathCarritos, JSON.stringify([carrito], null, 2), 'utf-8');
     }
   }
 
-  deleteProduct(id) {
-    const index = this.products.findIndex(product => product.id === id);
-    if (index !== -1) {
-      this.products.splice(index, 1);
-      this.saveProducts();
-      console.log("Producto eliminado. ID:", id);
-    } else {
-      console.error("Producto no encontrado para eliminar. ID:", id);
+  generarIdUnicoCarrito() {
+    try {
+      const datos = fs.readFileSync(this.pathCarritos, 'utf-8');
+      const carritos = JSON.parse(datos);
+      return carritos.length > 0 ? Math.max(...carritos.map((c) => c.id)) + 1 : 1;
+    } catch (error) {
+      return 1;
     }
   }
 }
-
-
-const productManager = new ProductManager('productos.json');
-
-
-console.log("Productos al inicio:", productManager.getProducts()); // Debería mostrar []
-
-
-productManager.addProduct({
-  title: "producto prueba",
-  description: "Este es un producto prueba",
-  price: 200,
-  thumbnail: "Sin imagen",
-  code: "abc123",
-  stock: 25
-});
-
-
-console.log("Productos después de agregar uno:", productManager.getProducts());
-
-
-const productIdToSearch = 1;
-const foundProduct = productManager.getProductById(productIdToSearch);
-console.log("Producto encontrado por ID:", foundProduct);
-
-
-productManager.updateProduct(1, { price: 250 }); 
-console.log("Producto actualizado:", productManager.getProductById(1)); 
-
-
-productManager.deleteProduct(2);
-console.log("Productos después de eliminar uno:", productManager.getProducts());
 
 module.exports = ProductManager;
